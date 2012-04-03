@@ -1,0 +1,5 @@
+
+@config.json@:
+
+    {"document-root": "/Users/kburton/projects/rn-wall/api-proxy",
+     "port": 7654}
