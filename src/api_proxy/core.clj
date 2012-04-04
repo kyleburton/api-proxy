@@ -6,12 +6,14 @@
   (:use
    ring.adapter.jetty))
 
-;; TODO: serve up proper mime types
 ;; TODO: forward to remote if no local file found (use clj-http)
 ;; TODO: load the configuration from config.json
 ;; TODO: allow multiple proxies to be configured
 ;; TODO: document how to configure logging, provide a default
+;; TODO: allow mime types file to be specified in configuration
+;; TODO: allow default mime type to be specified in the configuration
 ;;
+;; DONE: serve up proper mime types
 ;; DONE: serve local content [if found]
 ;; DONE: serve index.html file if found
 ;; DONE: have Jetty start in a daemon thread
@@ -60,22 +62,33 @@
      0)
     (.incrementAndGet (apply config :stats ks))))
 
-;; (reset-config!)
-;; (config)
-;; (config)
-;; (config :stats)
-;; (cons :stuff (take (dec (count [:foo :bar])) [:foo :bar]))
-;; (count! :stuff)
-;; (count! :lots :of :stuff)
-;; (take 2 [:lots :of :stuff])
-;; (take-last 1 [:lots :of :stuff])
+(defn mime-types-from-nginx-config []
+  (let [mime-type-file (if (.exists (java.io.File. "/etc/nginx/mime.types"))
+                         "/etc/nginx/mime.types"
+                         "resources/mime.types")
+        mime-types (slurp mime-type-file)
+        spos        (.indexOf mime-types "{")
+        epos        (.indexOf mime-types "}")
+        lines       (drop 1 (vec (.split (.substring mime-types spos epos) "\n")))]
+    (reduce
+     (fn make-mime-types-map [m [mime-type & extensions]]
+       (loop [m m
+              [ext & exts] extensions]
+         (if-not ext
+           m
+           (recur (assoc m ext mime-type)
+                  exts))))
+     {}
+     (map
+      (fn parse-nginx-mime-type-line [l]
+        (vec
+         (.split
+          (.replaceAll (.trim l) ";" "")
+          "\\s+")))
+      lines))))
 
-(update-in
- {}
- [:lots :of]
- assoc
- :stuff
- (java.util.concurrent.atomic.AtomicLong.))
+(def *mime-types*
+     (mime-types-from-nginx-config))
 
 (defn find-local-file-path [request]
   (let [f (java.io.File. (document-root)
@@ -92,13 +105,18 @@
              (.exists f))
           (str f))))))
 
+(defn mime-type-for-file [f]
+  (let [ext       (org.apache.commons.io.FilenameUtils/getExtension f)]
+    (get *mime-types* (.toLowerCase ext) "text/html")))
+
+;; (mime-type-for-file "foo.css")
 
 (defn serve-local-file [request f]
   (log/infof "Serving local file: %s" f)
   (count! :num-local-files)
   (count! :local-files f)
   {:stutus 200
-   :headers {"Content-Type" "text/html"}
+   :headers {"Content-Type" (mime-type-for-file f)}
    :body (java.io.FileInputStream. f)})
 
 (defn proxy-stats [request]
@@ -113,7 +131,6 @@
 
 (defn request-handler [request]
   (count! :num-requests)
-  (def *rr* request)
   (let [local-file-path (find-local-file-path request)]
     (cond
       local-file-path               (serve-local-file request local-file-path)
@@ -128,48 +145,4 @@
   (reset! (server-atom) (run-jetty (fn [request] (request-handler request)) (config))))
 
 (restart-server)
-
-(comment
-
-  (def *s* (run-jetty (fn [request] (request-handler request)) *server*))
-
-  *s*
-
-
-
-  )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
