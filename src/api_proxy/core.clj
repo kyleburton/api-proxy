@@ -2,6 +2,7 @@
   (:require
    [clj-etl-utils.log :as log]
    [clojure.contrib.json :as json]
+   [clj-etl-utils.http :as ua]
    clojure.contrib.pprint)
   (:use
    ring.adapter.jetty))
@@ -12,6 +13,7 @@
 ;; TODO: document how to configure logging, provide a default
 ;; TODO: allow mime types file to be specified in configuration
 ;; TODO: allow default mime type to be specified in the configuration
+;; TODO: cookie rewriting - just act as a pass-through
 ;;
 ;; DONE: serve up proper mime types
 ;; DONE: serve local content [if found]
@@ -145,4 +147,14 @@
   (reset! (server-atom) (run-jetty (fn [request] (request-handler request)) (config))))
 
 (restart-server)
+
+
+
+(comment
+
+
+  (def *ua* (ua/user-agent))
+
+
+)
 
